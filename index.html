@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Three.js Memory Cards</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+        }
+        canvas {
+            display: block;
+        }
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">Loading...</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://threejs.org/examples/fonts/helvetiker_regular.typeface.json"></script>
+    <script>
+        // Set up scene
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a1a); // Dark green-gray background
+        
+        // Set up camera
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 2;
+        camera.position.y = 0.2; // Slightly raised viewpoint
+        
+        // Set up renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Create a loading manager
+        const loadingManager = new THREE.LoadingManager();
+        loadingManager.onLoad = () => {
+            document.getElementById('loading').style.display = 'none';
+        };
+        
+        // Create texture loader
+        const textureLoader = new THREE.TextureLoader(loadingManager);
+        
+        // Load main image texture
+        const mainTexture = textureLoader.load('images/main-portrait.png');
+        
+        // Create main plane (old man portrait)
+        const mainPlaneWidth = 1.5;
+        const mainPlaneHeight = mainPlaneWidth;
+        const mainGeometry = new THREE.PlaneGeometry(mainPlaneWidth, mainPlaneHeight);
+        const mainMaterial = new THREE.MeshBasicMaterial({ 
+            map: mainTexture,
+            side: THREE.DoubleSide
+        });
+        const mainPlane = new THREE.Mesh(mainGeometry, mainMaterial);
+        mainPlane.position.y = -0.2; // Slight adjustment to center the portrait
+        scene.add(mainPlane);
+
+        // Create text
+        const fontLoader = new THREE.FontLoader();
+        fontLoader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', function(font) {
+            const textGeometry = new THREE.TextGeometry('Dreaming', {
+                font: font,
+                size: 0.15,
+                height: 0.02,
+                curveSegments: 12,
+                bevelEnabled: false
+            });
+            
+            const textMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xffffff  // White color
+            });
+            
+            const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+            
+            // Center the text
+            textGeometry.computeBoundingBox();
+            const textWidth = textGeometry.boundingBox.max.x - textGeometry.boundingBox.min.x;
+            textMesh.position.set(-textWidth/2, 0.8, 0); // Positioned above the portrait
+            
+            scene.add(textMesh);
+        });
+
+        // Create floating memory cards
+        const memoryCards = [];
+        const numCards = 3;
+        const radius = 0.8; // Smaller radius for tighter orbit
+        // Base size for cards
+        const baseCardSize = 0.35 * 0.3; // Reduced to 30% of original size
+        // Calculate aspect ratios for each card
+        const cardSizes = [
+            { width: baseCardSize * (4/3), height: baseCardSize },  // Landscape
+            { width: baseCardSize * (3/4), height: baseCardSize },  // Portrait
+            { width: baseCardSize, height: baseCardSize }           // Square
+        ];
+
+        // Define starting positions that match the reference image (spread out in space)
+        const cardPositions = [
+            { x: -0.4, y: 0.3, z: 0.1 },   // Left photo, closest to camera
+            { x: 0.4, y: 0.2, z: 0.3 },    // Right photo, middle distance
+            { x: 0.0, y: -0.2, z: 0.5 }    // Bottom photo, furthest from camera
+        ];
+
+        // After the textureLoader setup, add a new function for creating glow material
+        function createGlowMaterial() {
+            return new THREE.MeshBasicMaterial({
+                color: 0xff9933,  // Warm orange color
+                transparent: true,
+                opacity: 0.4,
+                side: THREE.DoubleSide
+            });
+        }
+
+        // Modify the memory cards creation loop
+        for (let i = 0; i < numCards; i++) {
+            // Array of memory card image paths
+            const memoryCardImages = [
+                'images/memory1.png',
+                'images/memory2.png',
+                'images/memory3.png'
+            ];
+            const texture = textureLoader.load(memoryCardImages[i]);
+            const geometry = new THREE.PlaneGeometry(
+                cardSizes[i].width,
+                cardSizes[i].height
+            );
+            const material = new THREE.MeshBasicMaterial({
+                map: texture,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.95
+            });
+            
+            const card = new THREE.Mesh(geometry, material);
+            
+            // Create glow plane (slightly larger than the photo)
+            const glowGeometry = new THREE.PlaneGeometry(
+                cardSizes[i].width * 1.1,  // 10% larger
+                cardSizes[i].height * 1.1
+            );
+            const glowMaterial = createGlowMaterial();
+            const glowPlane = new THREE.Mesh(glowGeometry, glowMaterial);
+            
+            // Group the photo and its glow together
+            const cardGroup = new THREE.Group();
+            glowPlane.position.z = -0.01; // Position glow slightly behind photo
+            cardGroup.add(glowPlane);
+            cardGroup.add(card);
+            
+            // Set initial positions with different z-depths
+            cardGroup.position.set(
+                cardPositions[i].x,
+                cardPositions[i].y,
+                cardPositions[i].z
+            );
+            
+            // Add varied initial rotations
+            cardGroup.rotation.x = (Math.random() - 0.5) * 0.3;
+            cardGroup.rotation.y = (Math.random() - 0.5) * 0.3;
+            cardGroup.rotation.z = (Math.random() - 0.5) * 0.2;
+            
+            memoryCards.push(cardGroup); // Store the group instead of just the card
+            scene.add(cardGroup);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            
+            renderer.setSize(width, height);
+        });
+        
+        // Animation loop
+        let time = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            time += 0.003;
+            
+            memoryCards.forEach((cardGroup, index) => {
+                const angle = time + (index / numCards) * Math.PI * 2;
+                const orbitRadius = 0.3 * (1 + index * 0.1);
+                
+                const baseX = Math.cos(angle * 1.5 + index * 2) * orbitRadius * 0.4;
+                const baseY = Math.sin(angle * 1.5) * 0.1;
+                const floatOffset = Math.sin(time * 2 + index * 0.8) * 0.02;
+                
+                cardGroup.position.x = baseX + cardPositions[index].x * 0.5;
+                cardGroup.position.y = Math.max(-0.5, Math.min(0.5, baseY + floatOffset));
+                cardGroup.position.z = 0.3 + Math.sin(angle * 1.5) * 0.05;
+                
+                cardGroup.rotation.x = Math.sin(time * 1.5 + index) * 0.02;
+                cardGroup.rotation.y = Math.cos(time * 1.5 + index) * 0.02;
+                cardGroup.rotation.z = Math.sin(time * 1.2 + index) * 0.01;
+            });
+            
+            renderer.render(scene, camera);
+        }
+        
+        animate();
+    </script>
+</body>
+</html>
